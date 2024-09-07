@@ -99,7 +99,7 @@ if __name__ == "__main__":
     save_articles_in_csv(
         run_sa=True,
         verbose=True,
-        truncate_at=50,
+        # truncate_at=50,
     )
 
     data = pd.read_csv("articles.csv")
