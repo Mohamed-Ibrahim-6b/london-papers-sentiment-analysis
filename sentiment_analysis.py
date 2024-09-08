@@ -15,7 +15,12 @@ model = AutoModelForSequenceClassification.from_pretrained(MODEL)
 
 
 def get_sentiment_analysis(text):
-    encoded_text = tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
+    encoded_text = tokenizer(
+        text,
+        return_tensors="pt",
+        max_length=512,
+        truncation=True,
+    )
     output = model(**encoded_text)
     scores = output[0][0].detach().numpy()
     scores = softmax(scores)
@@ -53,41 +58,39 @@ def get_file_data(text: str, run_sa=True):
 
 def save_articles_in_csv(run_sa=True, verbose=True, truncate_at=-1):
     dirs = [(dir.lower(), f"articles/{dir}") for dir in os.listdir("articles/")]
-    i = 0
-    result = []
-    for category, dir in dirs:
-        files = [f"{dir}/{f}" for f in os.listdir(dir)]
 
-        for file in files:
+    file_cnt = 0
+    for category, dir in dirs:
+        file_cnt += len(os.listdir(dir))
+    file_cnt = file_cnt if file_cnt < truncate_at or truncate_at < 0 else truncate_at
+
+    result = []
+    i = 0
+    for category, dir in dirs:
+        for file in os.listdir(dir):
+            i += 1
             if truncate_at >= 0 and truncate_at < i:
                 break
-            i += 1
             if verbose:
-                sys.stdout.write("\r* Analysing article: %i" % i)
-                sys.stdout.flush()
+                print_over_line(f"* Analysing article: {i} of {file_cnt}")
 
             text = ""
             try:
-                text: str = docx2txt.process(file)
+                text = docx2txt.process(f"{dir}/{file}")
             except Exception as e:
                 if verbose:
-                    print(
-                        f"\nFailed processing docx\n{e}\n{traceback.format_stack()}\n"
-                    )
+                    print(f"\nFailed processing docx: {dir}/{file}")
+                    print(f"{e}\n{traceback.format_stack()}")
 
             if text:
                 data = {}
                 try:
-                    data = get_file_data(
-                        text=text,
-                        run_sa=run_sa,
-                    )
+                    data = get_file_data(text=text, run_sa=run_sa)
                     data["category"] = category
                 except Exception as e:
                     if verbose:
-                        print(
-                            f"\nFailed getting file data\n{e}\n{traceback.format_stack()}\n"
-                        )
+                        print(f"\nFailed getting file data: {dir}/{file}")
+                        print(f"{e}\n{traceback.format_stack()}")
                 if data:
                     result.append(data)
 
@@ -95,11 +98,16 @@ def save_articles_in_csv(run_sa=True, verbose=True, truncate_at=-1):
     df.to_csv("articles.csv")
 
 
+def print_over_line(text):
+    sys.stdout.write(f"\r{text}")
+    sys.stdout.flush()
+
+
 if __name__ == "__main__":
     save_articles_in_csv(
         run_sa=True,
         verbose=True,
-        # truncate_at=50,
+        # truncate_at=10,
     )
 
     data = pd.read_csv("articles.csv")
